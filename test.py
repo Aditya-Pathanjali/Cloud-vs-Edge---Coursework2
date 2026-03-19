@@ -1,17 +1,3 @@
-#!/usr/bin/env python3
-"""
-test.py  –  Traffic generator + metrics collector + chart generator
-            for COMP5123M CW2 (NGINX LB VNF performance evaluation)
-
-Usage:
-    python3 test.py --cloud http://192.168.49.2:30080 \
-                    --edge  http://localhost:31080   \
-                    [--cloud-prom http://192.168.49.2:30090] \
-                    [--edge-prom  http://localhost:31090]
-
-All results saved to results/
-"""
-
 import argparse, csv, json, os, statistics, sys, threading, time
 from datetime import datetime
 from http.client import HTTPConnection, RemoteDisconnected
@@ -21,10 +7,6 @@ from urllib.error import URLError
 
 RESULTS = "results"
 os.makedirs(RESULTS, exist_ok=True)
-
-# ──────────────────────────────────────────────────────────────────
-# 1.  HTTP worker (sends requests as fast as possible)
-# ──────────────────────────────────────────────────────────────────
 
 class Stats:
     def __init__(self):
@@ -63,7 +45,7 @@ def worker(url, stats, stop):
 
 
 def run_load(url, connections, duration, label):
-    """Run a steady load test, return summary dict."""
+  
     stop = threading.Event()
     all_stats = [Stats() for _ in range(connections)]
     threads = [
@@ -112,11 +94,7 @@ def run_load(url, connections, duration, label):
           f"p99={row['lat_p99']}ms  err={row['err_pct']}%")
     return row
 
-
-# ──────────────────────────────────────────────────────────────────
-# 2.  Prometheus metrics snapshot
-# ──────────────────────────────────────────────────────────────────
-
+#Prometheus metrics snapshot helper
 def prom_val(base, query):
     try:
         url = f"{base}/api/v1/query?query={query}"
@@ -140,11 +118,7 @@ def get_metrics(prom_url, env):
         "mem_nginx_mb":  (prom_val(prom_url, 'sum(container_memory_working_set_bytes{container="nginx"})') or 0) / 1e6,
     }
 
-
-# ──────────────────────────────────────────────────────────────────
-# 3.  Full test suite for one environment
-# ──────────────────────────────────────────────────────────────────
-
+#this is a test suite for one environment
 SCENARIOS = [
     ("low",    10,  30),
     ("medium", 50,  60),
@@ -175,7 +149,7 @@ def test_env(env, url, prom_url):
         return [], {}
 
     rows = []
-    # Run each scenario 3 times for reliability
+    # Runs each scenario 3 times for reliability
     for name, conns, dur in SCENARIOS:
         for run in range(1, 4):
             label = f"{name}-run{run}"
@@ -205,11 +179,7 @@ def test_env(env, url, prom_url):
 
     return rows, metrics
 
-
-# ──────────────────────────────────────────────────────────────────
-# 4.  Charts
-# ──────────────────────────────────────────────────────────────────
-
+#Charts to understand the results, used matplotlib
 def make_charts(cloud_rows, edge_rows):
     try:
         import matplotlib
@@ -226,7 +196,7 @@ def make_charts(cloud_rows, edge_rows):
         vals = [r[field] for r in rows if r["label"].startswith(label_prefix)]
         return round(sum(vals) / len(vals), 2) if vals else 0
 
-    # ── Chart 1: Throughput ──────────────────────────────────
+    # Chart1 - Throughput
     fig, ax = plt.subplots(figsize=(8, 4))
     loads  = ["Low (10c)", "Medium (50c)", "High (200c)"]
     prfx   = ["low",       "medium",       "high"]
@@ -243,7 +213,7 @@ def make_charts(cloud_rows, edge_rows):
     fig.savefig(f"{RESULTS}/01_throughput.png", dpi=150); plt.close(fig)
     print("  ✔ 01_throughput.png")
 
-    # ── Chart 2: Latency percentiles ────────────────────────
+    # Chart2 - Latency percentiles
     fig, axes = plt.subplots(1, 3, figsize=(14, 4), sharey=False)
     for idx, (lbl, pfx) in enumerate(zip(loads, prfx)):
         ax = axes[idx]
@@ -261,7 +231,7 @@ def make_charts(cloud_rows, edge_rows):
     fig.tight_layout(); fig.savefig(f"{RESULTS}/02_latency.png", dpi=150); plt.close(fig)
     print("  ✔ 02_latency.png")
 
-    # ── Chart 3: Error rate ──────────────────────────────────
+    # Chart3 - Error rate
     fig, ax = plt.subplots(figsize=(8, 4))
     ce = [avg_by(cloud_rows, p, "err_pct") for p in prfx]
     ee = [avg_by(edge_rows,  p, "err_pct") for p in prfx]
@@ -275,7 +245,7 @@ def make_charts(cloud_rows, edge_rows):
     fig.savefig(f"{RESULTS}/03_error_rate.png", dpi=150); plt.close(fig)
     print("  ✔ 03_error_rate.png")
 
-    # ── Chart 4: Burst rps timeline ──────────────────────────
+    # Chart4 - Burst rps timeline
     fig, ax = plt.subplots(figsize=(10, 4))
     phases = ["burst-low-baseline","burst-moderate","burst-peak","burst-recovery"]
     for rows, col, lbl in [(cloud_rows,CLOUD,"Cloud"),(edge_rows,EDGE,"Edge")]:
@@ -288,10 +258,7 @@ def make_charts(cloud_rows, edge_rows):
     print("  ✔ 04_burst.png")
 
 
-# ──────────────────────────────────────────────────────────────────
-# 5.  CSV helpers
-# ──────────────────────────────────────────────────────────────────
-
+#Final CSV 
 FIELDS = ["env","label","conns","duration","requests","errors","rps",
           "lat_min","lat_mean","lat_p50","lat_p90","lat_p95","lat_p99","lat_max","err_pct"]
 
@@ -301,11 +268,7 @@ def save_csv(rows, path):
         w.writeheader(); w.writerows(rows)
     print(f"  CSV → {path}")
 
-
-# ──────────────────────────────────────────────────────────────────
-# 6.  CLI
-# ──────────────────────────────────────────────────────────────────
-
+#cli entry point
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--cloud",      default="", help="Cloud NGINX URL")
