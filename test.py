@@ -107,7 +107,7 @@ def prom_val(base, query):
         pass
     return None
 
-
+#This will return all the metrics
 def get_metrics(prom_url, env):
     return {
         "env":           env,
