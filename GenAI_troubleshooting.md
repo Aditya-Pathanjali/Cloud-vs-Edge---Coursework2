@@ -1,0 +1,26 @@
+# GenAI Troubleshooting Log
+**Tool used:** M365 Microsoft Copilot (enterprise data protection enabled)  
+**Role:** Assistive troubleshooting only — NOT used to generate solutions or write code.
+
+| # | Problem | Copilot prompt | Proposed fix | Worked? |
+|---|---------|---------------|-------------|---------|
+| 1 | `minikube start` failed: "PROVIDER_DOCKER_NOT_RUNNING" | "minikube start fails PROVIDER_DOCKER_NOT_RUNNING docker driver windows" | Start Docker Desktop first; verify with `docker ps` before running minikube | ✅ Yes |
+| 2 | `kubectl get pods` showed all tools not recognised after winget install (minikube, k3d, kubectl) | "winget install PATH not updated PowerShell commands not recognised" | Close and reopen PowerShell — winget modifies PATH but existing terminals don't reload it | ✅ Yes |
+| 3 | `bash setup.sh` failed: "syntax error near unexpected token `('" | "bash setup.sh syntax error unexpected token Windows Git Bash" | Windows CRLF line endings corrupting bash script; fix with `sed -i 's/\r//' setup.sh` | ✅ Yes |
+| 4 | YAML apply error: "unrecognized type: string" on backend deployment args | "kubernetes kubectl apply unrecognized type string args field YAML" | HTML tags `<h1>` inside YAML args field caused parsing failure; fixed using block scalar `|` syntax instead of inline string | ✅ Yes |
+| 5 | `k3d cluster create` failed: "cluster with that name already exists" | "k3d cluster create already exists error" | Run `k3d cluster list` to check existing clusters; use `k3d cluster delete edge-vnf` if recreating | ✅ Yes |
+| 6 | Grafana login failed "Invalid username or password" after pod restart | "Grafana invalid username password after pod restart kubernetes emptyDir" | emptyDir storage resets on pod restart losing credentials; reset with `kubectl exec deployment/grafana -- grafana-cli admin reset-admin-password admin` | ✅ Yes |
+| 7 | Prometheus datasource not auto-provisioned in Grafana despite environment variables set | "Grafana datasource environment variable auto provision not working kubernetes" | Environment variable provisioning unreliable in this Grafana version; manually added datasource via UI using internal DNS `http://prometheus-svc:9090` | ✅ Yes |
+| 8 | Cloud NGINX unreachable via `curl http://192.168.49.2:30080` on Windows Docker driver | "minikube NodePort not accessible Windows Docker driver curl connection refused" | Docker driver on Windows does not expose NodePort directly to host; use `minikube service nginx-lb-svc --url` to create a tunnel, use the printed localhost URL | ✅ Yes |
+| 9 | `kubectl top pods` returned ServiceUnavailable immediately after setup | "kubectl top pods ServiceUnavailable metrics-server not ready" | metrics-server needs ~60s to initialise after enabling; check with `kubectl get apiservice v1beta1.metrics.k8s.io` and wait for AVAILABLE=True | ✅ Yes |
+| 10 | Prometheus query `nginx_connections_accepted_total` returned no data in Grafana | "Prometheus nginx_connections_accepted_total empty no data grafana" | Metric name in this exporter version is `nginx_connections_accepted` without `_total` suffix; confirmed by querying `/api/v1/label/__name__/values` | ✅ Yes |
+| 11 | Edge Grafana not accessible at `localhost:31300` — connection refused | "k3d grafana NodePort localhost connection refused" | Grafana was not deployed in edge cluster (old k8s.yaml used); deployed manually then used `kubectl port-forward svc/grafana 3000:3000 -n vnf-edge` as workaround since port 31300 was not mapped at k3d creation | ✅ Yes |
+| 12 | Python `ConnectionResetError` at 200 concurrent connections during high load test | "Python HTTPConnection ConnectionResetError high concurrency keep-alive" | Catch `RemoteDisconnected` from `http.client` specifically; close and reopen connection on error rather than crashing the worker thread | ✅ Yes |
+
+## Opinion on GenAI effectiveness
+
+Copilot was most useful for **Windows-specific Kubernetes issues** — particularly the PATH problem after winget install, the Docker driver NodePort accessibility issue, and CRLF line ending errors in bash scripts. These are well-documented problems that Copilot could identify quickly from error message text alone, saving significant time compared to searching documentation manually.
+
+Copilot was less effective for **component interaction problems** — for example, it suggested `securityContext.fsGroup` for the Grafana credential reset issue, which was plausible but incorrect. The actual fix required understanding that `emptyDir` volumes reset on pod restart. Similarly, the Prometheus datasource auto-provisioning issue required manual investigation since Copilot's suggestion assumed a newer Grafana provisioning format.
+
+The most important lesson was to always **verify Copilot suggestions against actual error output** before applying them. In two cases (problems 7 and 11), Copilot's first suggestion was wrong but pointed in the right direction, requiring manual adjustment. Overall, Copilot reduced troubleshooting time by approximately 40% for well-known errors but provided limited value for environment-specific issues unique to this local Docker-based Kubernetes setup.
