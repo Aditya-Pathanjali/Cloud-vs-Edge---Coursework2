@@ -1,26 +1,28 @@
 # GenAI Troubleshooting Log
-**Tool used:** M365 Microsoft Copilot (enterprise data protection enabled)  
-**Role:** Assistive troubleshooting only — NOT used to generate solutions or write code.
 
-| # | Problem | Copilot prompt | Proposed fix | Worked? |
-|---|---------|---------------|-------------|---------|
-| 1 | `minikube start` failed: "PROVIDER_DOCKER_NOT_RUNNING" | "minikube start fails PROVIDER_DOCKER_NOT_RUNNING docker driver windows" | Start Docker Desktop first; verify with `docker ps` before running minikube | ✅ Yes |
-| 2 | `kubectl get pods` showed all tools not recognised after winget install (minikube, k3d, kubectl) | "winget install PATH not updated PowerShell commands not recognised" | Close and reopen PowerShell — winget modifies PATH but existing terminals don't reload it | ✅ Yes |
-| 3 | `bash setup.sh` failed: "syntax error near unexpected token `('" | "bash setup.sh syntax error unexpected token Windows Git Bash" | Windows CRLF line endings corrupting bash script; fix with `sed -i 's/\r//' setup.sh` | ✅ Yes |
-| 4 | YAML apply error: "unrecognized type: string" on backend deployment args | "kubernetes kubectl apply unrecognized type string args field YAML" | HTML tags `<h1>` inside YAML args field caused parsing failure; fixed using block scalar `|` syntax instead of inline string | ✅ Yes |
-| 5 | `k3d cluster create` failed: "cluster with that name already exists" | "k3d cluster create already exists error" | Run `k3d cluster list` to check existing clusters; use `k3d cluster delete edge-vnf` if recreating | ✅ Yes |
-| 6 | Grafana login failed "Invalid username or password" after pod restart | "Grafana invalid username password after pod restart kubernetes emptyDir" | emptyDir storage resets on pod restart losing credentials; reset with `kubectl exec deployment/grafana -- grafana-cli admin reset-admin-password admin` | ✅ Yes |
-| 7 | Prometheus datasource not auto-provisioned in Grafana despite environment variables set | "Grafana datasource environment variable auto provision not working kubernetes" | Environment variable provisioning unreliable in this Grafana version; manually added datasource via UI using internal DNS `http://prometheus-svc:9090` | ✅ Yes |
-| 8 | Cloud NGINX unreachable via `curl http://192.168.49.2:30080` on Windows Docker driver | "minikube NodePort not accessible Windows Docker driver curl connection refused" | Docker driver on Windows does not expose NodePort directly to host; use `minikube service nginx-lb-svc --url` to create a tunnel, use the printed localhost URL | ✅ Yes |
-| 9 | `kubectl top pods` returned ServiceUnavailable immediately after setup | "kubectl top pods ServiceUnavailable metrics-server not ready" | metrics-server needs ~60s to initialise after enabling; check with `kubectl get apiservice v1beta1.metrics.k8s.io` and wait for AVAILABLE=True | ✅ Yes |
-| 10 | Prometheus query `nginx_connections_accepted_total` returned no data in Grafana | "Prometheus nginx_connections_accepted_total empty no data grafana" | Metric name in this exporter version is `nginx_connections_accepted` without `_total` suffix; confirmed by querying `/api/v1/label/__name__/values` | ✅ Yes |
-| 11 | Edge Grafana not accessible at `localhost:31300` — connection refused | "k3d grafana NodePort localhost connection refused" | Grafana was not deployed in edge cluster (old k8s.yaml used); deployed manually then used `kubectl port-forward svc/grafana 3000:3000 -n vnf-edge` as workaround since port 31300 was not mapped at k3d creation | ✅ Yes |
-| 12 | Python `ConnectionResetError` at 200 concurrent connections during high load test | "Python HTTPConnection ConnectionResetError high concurrency keep-alive" | Catch `RemoteDisconnected` from `http.client` specifically; close and reopen connection on error rather than crashing the worker thread | ✅ Yes |
+**Tool used:** M365 Microsoft Copilot (enterprise data protection enabled)
+**Purpose:** Used only to help fix specific errors — not used to write 
+code or complete any part of the coursework.
 
-## Opinion on GenAI effectiveness
+---
 
-Copilot was most useful for **Windows-specific Kubernetes issues** — particularly the PATH problem after winget install, the Docker driver NodePort accessibility issue, and CRLF line ending errors in bash scripts. These are well-documented problems that Copilot could identify quickly from error message text alone, saving significant time compared to searching documentation manually.
+## Issues and fixes
 
-Copilot was less effective for **component interaction problems** — for example, it suggested `securityContext.fsGroup` for the Grafana credential reset issue, which was plausible but incorrect. The actual fix required understanding that `emptyDir` volumes reset on pod restart. Similarly, the Prometheus datasource auto-provisioning issue required manual investigation since Copilot's suggestion assumed a newer Grafana provisioning format.
+| # | Problem | What I asked Copilot | Solution suggested | Did it work? |
+|---|---------|---------------------|--------------------|--------------|
+| 1 | After installing minikube, k3d, and kubectl using winget, none of the commands were recognised in PowerShell | "winget install commands not recognised in PowerShell" | Close the current terminal and open a new one — winget updates the PATH but existing terminals don't reload it | ✅ Yes |
+| 2 | Running `bash setup.sh` gave a syntax error near `$(` | "bash setup.sh syntax error unexpected token Windows" | Windows saves files with CRLF line endings which break bash scripts — fix with `sed -i 's/\r//' setup.sh` | ✅ Yes |
+| 3 | kubectl apply failed with "unrecognized type: string" on the backend deployment | "kubectl apply unrecognized type string YAML args field" | The HTML tags inside the args field were confusing the YAML parser — switching to block scalar format (using `|`) fixed it | ✅ Yes |
+| 4 | `k3d cluster create` failed saying the cluster already exists | "k3d cluster create already exists error" | Check existing clusters with `k3d cluster list` — if it exists, either reuse it or delete with `k3d cluster delete edge-vnf` first | ✅ Yes |
+| 5 | Could not reach the NGINX service via `curl http://192.168.49.2:30080` on Windows | "minikube NodePort not reachable Windows Docker driver" | The Docker driver on Windows does not expose NodePort addresses directly — use `minikube service nginx-lb-svc --url` to get a working localhost URL instead | ✅ Yes |
+| 6 | Grafana login failed with "Invalid username or password" after a pod restart | "Grafana login failed after Kubernetes pod restart" | Suggested adding `securityContext.fsGroup: 65534` to the Grafana pod spec to fix storage permissions | ❌ No — this did not fix the issue for me. The real cause was that emptyDir storage resets on pod restart, wiping credentials entirely. I've fixed it manually by running `kubectl exec deployment/grafana -- grafana-cli admin reset-admin-password admin` |
+| 7 | Prometheus datasource was not showing up in Grafana after deployment | "Grafana Prometheus datasource not auto configured Kubernetes environment variables" | Suggested adding specific provisioning environment variables to the Grafana deployment manifest | ❌ No — the environment variables had no effect in this version of Grafana. I have added the datasource manually through the Grafana UI using the internal address `http://prometheus-svc:9090` |
+| 8 | The query `nginx_connections_accepted_total` returned no data in Grafana | "Prometheus nginx_connections_accepted_total no data" | This version of the exporter uses `nginx_connections_accepted` without the `_total` suffix — confirmed by checking available metrics at `/api/v1/label/__name__/values` | ✅ Yes |
 
-The most important lesson was to always **verify Copilot suggestions against actual error output** before applying them. In two cases (problems 7 and 11), Copilot's first suggestion was wrong but pointed in the right direction, requiring manual adjustment. Overall, Copilot reduced troubleshooting time by approximately 40% for well-known errors but provided limited value for environment-specific issues unique to this local Docker-based Kubernetes setup.
+---
+
+## My thoughts on using GenAI for troubleshooting
+
+For this coursework, Copilot was truly useful and helpful when faced with common, well-known mistakes; it's interesting that the Windows PATH bug and the NodePort tunnel bug existed in this realm. These problems have identifiable and documented solutions, which Copilot could recognize in great speed to economize the time that is spent reading the technical documentation manually.
+
+Copilot's reliability did decline, however, in more idiosyncratic situations for the particular setup. An example here is Grafana datasource discrepancy which required manual exploration of the Grafana user-interface to resolve accurately; Copilot's direction here was correct but only directionally rather than accurate enough for the version in use. Similarly, the metric naming problem (problem 8) required the program to make a direct investigation of the Prometheus API, instead of relying on Copilot's response.
