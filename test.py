@@ -211,7 +211,7 @@ def make_charts(cloud_rows, edge_rows):
            title="Throughput – Cloud vs Edge (NGINX LB VNF)", xticks=x, xticklabels=loads)
     ax.legend(); fig.tight_layout()
     fig.savefig(f"{RESULTS}/01_throughput.png", dpi=150); plt.close(fig)
-    print("  ✔ 01_throughput.png")
+    print("01_throughput.png")
 
     # Chart2 - Latency percentiles
     fig, axes = plt.subplots(1, 3, figsize=(14, 4), sharey=False)
@@ -243,7 +243,7 @@ def make_charts(cloud_rows, edge_rows):
            title="Error Rate – Cloud vs Edge", xticks=x, xticklabels=loads)
     ax.legend(); fig.tight_layout()
     fig.savefig(f"{RESULTS}/03_error_rate.png", dpi=150); plt.close(fig)
-    print("  ✔ 03_error_rate.png")
+    print("03_error_rate.png")
 
     # Chart4 - Burst rps timeline
     fig, ax = plt.subplots(figsize=(10, 4))
@@ -255,7 +255,7 @@ def make_charts(cloud_rows, edge_rows):
     ax.set(ylabel="Requests / second", title="Burst Ramp – Cloud vs Edge")
     ax.legend(); fig.tight_layout()
     fig.savefig(f"{RESULTS}/04_burst.png", dpi=150); plt.close(fig)
-    print("  ✔ 04_burst.png")
+    print("04_burst.png")
 
 
 #Final CSV 
